@@ -1,10 +1,14 @@
+# python
+*.pyc
+__pycache__/
+
+# virtual environment
+.venv*/
 venv*/
 
-__pycache__/
-*.pyc
+# Pycharm IDE
+/.idea/
 
-# VS Code
+# VS Code IDE
+/.vscode/
 *.code-workspace
-
-# PyCharm
-/.idea
