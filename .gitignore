@@ -1,0 +1,10 @@
+venv*/
+
+__pycache__/
+*.pyc
+
+# VS Code
+*.code-workspace
+
+# PyCharm
+/.idea
