@@ -1,3 +1,7 @@
+import os
+
+
+# path = 'C:\script007\server\ForFile'
 
 def change_dir(path: str, autocreate: bool = True) -> None:
     """Change current directory of app.
@@ -11,10 +15,19 @@ def change_dir(path: str, autocreate: bool = True) -> None:
         ValueError: if path is invalid.
     """
 
+
+    if os.path.exists(path):
+        print("Директория есть")
+        pass
+    else:
+        print("Создали директорию ")
+        autocreate = os.mkdir(path, mode=0o777)
+        return autocreate
+
     pass
 
 
-def get_files() -> list:
+def get_files(path) -> list:
     """Get info about all files in working directory.
 
     Returns:
@@ -25,7 +38,32 @@ def get_files() -> list:
         - size (int): size of file in bytes.
     """
 
-    pass
+    # Словарь
+    FileInfoDict = {
+        'name':"",
+        'create_date':"",
+        'edit_date':"",
+        'size': "",
+    }
+
+
+    AllFiles = os.listdir(path) # получить список файлов в каталоге
+
+    returnlist =[]
+
+    for i in AllFiles: # проходим по всем файлам
+
+        statinfo = os.stat(path + i) # получаем инфу по файлу
+
+        FileInfoDict['name'] = i
+        FileInfoDict['create_date'] = statinfo.st_ctime
+        FileInfoDict['edit_date'] = statinfo.st_mtime
+        FileInfoDict['size'] = statinfo.st_size
+
+        returnlist.append(FileInfoDict) # добавляеем кортеж в список
+
+
+    return returnlist
 
 
 def get_file_data(filename: str) -> dict:
@@ -47,7 +85,25 @@ def get_file_data(filename: str) -> dict:
         ValueError: if filename is invalid.
     """
 
-    pass
+
+    try:
+        with open(filename, 'r') as file:
+            data = file.read()
+
+        FileInfoDict = {}
+        statinfo = os.stat(filename)
+        FileInfoDict['name'] = filename
+        FileInfoDict['content'] = data
+        FileInfoDict['create_date'] = statinfo.st_ctime
+        FileInfoDict['edit_date'] = statinfo.st_mtime
+        FileInfoDict['size'] = statinfo.st_size
+
+        return FileInfoDict
+
+    except:
+        print("Файл не найден")
+
+
 
 
 def create_file(filename: str, content: str = None) -> dict:
@@ -67,8 +123,12 @@ def create_file(filename: str, content: str = None) -> dict:
     Raises:
         ValueError: if filename is invalid.
     """
-
-    pass
+    try:
+        with open(filename, '+r') as file:
+            file.write(content)
+    except:
+        print("Ошибка")
+        pass
 
 
 def delete_file(filename: str) -> None:
@@ -81,5 +141,7 @@ def delete_file(filename: str) -> None:
         RuntimeError: if file does not exist.
         ValueError: if filename is invalid.
     """
+    os.remove(filename)
+    print("Done!")
 
-    pass
+
