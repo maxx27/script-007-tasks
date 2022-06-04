@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
+from utils.Config import config
+from server.WebHandler import WebHandler
+from aiohttp import web
+import utils.Config
 import logging
 import logging.config
 import sys
-
-import server.FileService as FileService
-import utils.Config
 
 
 def setup_logger(level='NOTSET', filename=None):
@@ -43,7 +44,13 @@ def main():
     logging.debug('started')
     logging.debug('config %s', utils.Config.data.to_dict())
 
-    FileService.change_dir(utils.Config.data.dir)
+    handler = WebHandler()
+    app = web.Application()
+    app.add_routes([
+        web.get('/', handler.handle),
+        # TODO: add more routes
+    ])
+    web.run_app(app, port=config.port)
 
 
 if __name__ == '__main__':
