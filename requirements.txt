@@ -1,1 +1,4 @@
 dotted-dict
+aiohttp
+pytest-aiohttp
+requests

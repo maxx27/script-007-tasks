@@ -2,20 +2,38 @@ import argparse
 import configparser
 import logging
 import os
+import sys
 
 import dotted_dict
 
 from utils.Singleton import singleton
-
-data = None
-
-
-def gather() -> None:
-    global data
-    data = SingletonConfig().layered_config.data
+from utils.RunUtils import is_pytest_running
 
 
-class LayeredConfig:
+def get_project_dir(subdir: str = None):
+    """
+    It makes easy to address project dir.
+
+    May be used for testcases.
+
+    Args:
+        subdir (str): append specified subfolder if any
+
+    Returns:
+        (str) Absolute path for project dir with specified subdirectory if any.
+    """
+    if subdir is not None and os.path.isabs(subdir):
+        return subdir
+
+    proj_dir = os.path.dirname(os.path.abspath(__file__))
+    proj_dir = os.path.abspath(os.path.join(proj_dir, '..'))
+    if subdir:
+        return os.path.join(proj_dir, subdir)
+    else:
+        return proj_dir
+
+
+class Config:
     """
     Configuration storage that reads data from (from high to low priority):
     - command line
@@ -26,11 +44,12 @@ class LayeredConfig:
     You can use dot notation to access specific values.
 
     There are the following values:
-    config    - name of configuration file
-    dir       - directory to keep files
-    log.level - logging level
-    log.file  - log filename
-    port      - port for web-server
+    config     - name of configuration file
+    dir        - directory to keep files
+    autocreate - create subdirs to keep files as requested
+    log.level  - logging level
+    log.file   - log filename
+    port       - port for web-server
     """
 
     def __init__(self) -> None:
@@ -47,10 +66,12 @@ class LayeredConfig:
         self.data.update({
             'config': 'config.ini',
             'dir': 'data',
+            'autocreate': True,
             'log': {
                 'level': 'warning',
                 'file': None,  # 'server.log'
             },
+            'host': '127.0.0.1',
             'port': 8080,
         })
 
@@ -63,10 +84,14 @@ class LayeredConfig:
             ini_parser = configparser.ConfigParser()
             ini_parser.read_string('[default]\n' + stream.read())
             ini_params = ini_parser['default']
+            # TODO: enumerate all params and get rid of specific values
             self.data.dir = ini_params.get('dir', self.data.dir)
+            self.data.autocreate = ini_params.getboolean(
+                'autocreate', self.data.autocreate)
             self.data.log.level = ini_params.get(
                 'log.level', self.data.log.level)
             self.data.log.file = ini_params.get('log.file', self.data.log.file)
+            self.data.host = ini_params.get('host', self.data.host)
             self.data.port = ini_params.getint('port', self.data.port)
 
     def _read_envvars(self) -> None:
@@ -74,10 +99,13 @@ class LayeredConfig:
         prefix = self._env_prefix.upper()
         self.data.config = os.getenv(f'{prefix}_CONFIG', self.data.config)
         self.data.dir = os.getenv(f'{prefix}_DIR', self.data.dir)
+        self.data.autocreate = os.getenv(
+            f'{prefix}_AUTOCREATE', self.data.autocreate)
         self.data.log.level = os.getenv(
             f'{prefix}_LOG_LEVEL', self.data.log.level)
         self.data.log.file = os.getenv(
             f'{prefix}_LOG_FILE', self.data.log.file)
+        self.data.host = os.getenv(f'{prefix}_HOST', self.data.host)
         self.data.port = int(os.getenv(f'{prefix}_PORT', self.data.port))
 
     def _create_parser(self) -> None:
@@ -85,6 +113,7 @@ class LayeredConfig:
 
         Command line options:
         -d --dir       - working directory (absolute or relative path).
+           --autocreate - enable autocreation of subdirs
            --log-level - set verbosity level
         -l --log-file  - set log filename
         -p --port      - port for web-server
@@ -94,28 +123,51 @@ class LayeredConfig:
                                       help=f'config filename (default: {self.data.config})')
         self._arg_parser.add_argument('-d', '--dir', type=str,
                                       help=f'working directory (default: {self.data.dir})')
+        self._arg_parser.add_argument('--autocreate', type=bool,
+                                      help=f'autocreate subdirs (default: {self.data.autocreate})')
         self._arg_parser.add_argument('--log-level', choices=['debug', 'info', 'warning', 'error'],
                                       help=f'Log level to console (default: {self.data.log.level})')
         self._arg_parser.add_argument(
             '-l', '--log-file', type=str, help='Log file')
         self._arg_parser.add_argument(
+            '-H', '--host', type=str, help='Bind address (host)')
+        self._arg_parser.add_argument(
             '-p', '--port', type=int, help='Port for web-server')
 
     def _parse_arguments(self) -> None:
         """Helper method for argument parsing."""
-        self._args = self._arg_parser.parse_args()
+        if is_pytest_running():
+            # called from within a test run:
+            # e.g. of sys.argv: pytest server
+            self._args = argparse.Namespace(
+                config=None,
+                dir=None,
+                autocreate=None,
+                log_level=None,
+                log_file=None,
+                host=None,
+                port=None,
+            )
+        else:
+            # called "normally"
+            self._args = self._arg_parser.parse_args()
 
     def _read_arguments(self) -> None:
         if self._args.dir:
             self.data.dir = self._args.dir
+        if self._args.autocreate:
+            self.data.autocreate = self._args.autocreate
         if self._args.log_level:
             self.data.log.level = self._args.log_level
         if self._args.log_file:
             self.data.log.file = self._args.log_file
+        if self._args.host:
+            self.data.host = self._args.host
         if self._args.port:
             self.data.port = self._args.port
 
     def _validate(self) -> None:
+        # TODO: implement
         pass
 
     def update(self) -> None:
@@ -138,13 +190,37 @@ class LayeredConfig:
         self._validate()
 
     def dump_config(self):
-        # print to sys.file.stdout or specified file
+        # TODO: print to sys.file.stdout or specified file
         pass
 
 
 @singleton
-class SingletonConfig:
+class LazyProxyConfig:
+    """Import of Config module will done at very start.
+    Program may request update value:
+    - manually using .update() method
+    - automatically when first invocation occurs. Automatic update may failed because:
+        - no initial settings were done (e.g., chdir)
+        - ???
+    """
 
-    def __init__(self) -> None:
-        self.layered_config = LayeredConfig()
-        self.layered_config.update()
+    def __init__(self):
+        object.__setattr__(self, '_config', None)
+
+    def __getattribute__(self, name):
+        c = object.__getattribute__(self, '_config')
+        if c is None:
+            c = Config()
+            c.update()
+            object.__setattr__(self, '_config', c)
+        return object.__getattribute__(c.data, name)
+
+    def __setattr__(self, name, value):
+        c = object.__getattribute__(self, '_config')
+        if c is None:
+            c = Config()
+            c.update()
+            object.__setattr__(self, '_config', c)
+        return object.__setattr__(c.data, name, value)
+
+data = LazyProxyConfig()
