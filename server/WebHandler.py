@@ -143,6 +143,7 @@ class WebHandler:
             FileService.create_file(filename, content)
             return WebHandler._get_json_response({
                 'status': 'success',
+                # TODO: Add resource link
             })
         except json.JSONDecodeError as err:
             raise web.HTTPBadRequest(text=f"cannot parse json: {str(err)}")
