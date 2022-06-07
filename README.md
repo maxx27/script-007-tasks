@@ -16,7 +16,8 @@ Author is Maxim Suslov.
 | 03. Логирование         | `03_logging`      |
 | 04. Настройка программы | `04_config`       |
 | 05. REST API            | `05_rest_api`     |
-| 06. Database            | `06_database`     |
+| 06. Web                 | `06_web`          |
+| 07. Database            | `07_database`     |
 
 Решение для каждого задания представлено в ветке с таким же названием, но с суффиксом `_solution`.
 
