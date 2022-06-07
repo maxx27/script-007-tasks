@@ -156,3 +156,17 @@ $ git merge trainer/BRANCH_NAME
 
 - [ ] Provide access to files via access policy
 - [ ] Keep users in database
+
+# Database
+
+Connect to database and create database and user if needed (for docker compose there is a ready to use database):
+
+```sql
+create database mydb;
+create user myuser with encrypted password 'mypass';
+grant all privileges on database mydb to myuser;
+```
+
+(or do it interactively via pgAdmin, for example)
+
+Add connection settings into application's config.
